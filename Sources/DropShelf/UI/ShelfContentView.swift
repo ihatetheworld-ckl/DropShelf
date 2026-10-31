@@ -17,7 +17,7 @@ public struct ShelfContentView: View {
                         .strokeBorder(
                             viewModel.isDropTargeted
                                 ? Color.accentColor.opacity(0.95)
-                                : Color.white.opacity(0.18),
+                                : Color.white.opacity(0.22),
                             lineWidth: viewModel.isDropTargeted ? 2.5 : 1.0
                         )
                 )
@@ -28,6 +28,8 @@ public struct ShelfContentView: View {
                 expandedShelfView
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(1.5)
         .animation(.spring(response: 0.25, dampingFraction: 0.82), value: viewModel.isCollapsed)
         .animation(.easeInOut(duration: 0.16), value: viewModel.isDropTargeted)
         .animation(.easeInOut(duration: 0.18), value: viewModel.items.count)
@@ -370,11 +372,11 @@ public struct ShelfContentView: View {
                         }
                     )
                 }
-                .frame(width: 110, height: 92)
+                .frame(width: 110, height: 84)
                 .help("按住文件图标拖出文件 · 双击打开")
 
                 ZStack {
-                    VStack(spacing: 3) {
+                    VStack(spacing: 2) {
                         if let first = viewModel.items.first {
                             Text(viewModel.items.count == 1 ? first.displayName : "\(first.displayName) 等 \(viewModel.items.count) 项")
                                 .font(.system(size: 12, weight: .medium))
@@ -391,7 +393,8 @@ public struct ShelfContentView: View {
                     WindowDragHandleOverlay()
                 }
             }
-            .padding(8)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
         }
     }
 

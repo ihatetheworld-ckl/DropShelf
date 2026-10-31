@@ -6,8 +6,8 @@ public final class ShelfPanel: NSPanel, QLPreviewPanelDataSource, QLPreviewPanel
     public let viewModel: ShelfViewModel
     public var onCloseShelf: ((UUID) -> Void)?
 
-    public static let expandedSize = NSSize(width: 248, height: 220)
-    public static let collapsedSize = NSSize(width: 170, height: 46)
+    public static let expandedSize = NSSize(width: 254, height: 238)
+    public static let collapsedSize = NSSize(width: 176, height: 50)
 
     public init(viewModel: ShelfViewModel, initialCenter: CGPoint) {
         self.viewModel = viewModel
@@ -17,7 +17,7 @@ public final class ShelfPanel: NSPanel, QLPreviewPanelDataSource, QLPreviewPanel
 
         super.init(
             contentRect: contentRect,
-            styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -37,6 +37,9 @@ public final class ShelfPanel: NSPanel, QLPreviewPanelDataSource, QLPreviewPanel
         dropContainer.viewModel = viewModel
 
         let hostingView = NSHostingView(rootView: ShelfContentView(viewModel: viewModel))
+        if #available(macOS 13.0, *) {
+            hostingView.sizingOptions = []
+        }
         hostingView.frame = dropContainer.bounds
         hostingView.autoresizingMask = [.width, .height]
         dropContainer.addSubview(hostingView)
