@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import ServiceManagement
 
 public enum ShakeSensitivity: String, CaseIterable, Identifiable {
     case low = "low"
@@ -44,6 +45,15 @@ public enum ShakeSensitivity: String, CaseIterable, Identifiable {
 public final class AppSettings: ObservableObject {
     public static let shared = AppSettings()
 
+    @Published public var launchAtLoginEnabled: Bool {
+        didSet {
+            guard !isSyncingLaunchAtLogin else { return }
+            updateLaunchAtLogin(enabled: launchAtLoginEnabled)
+        }
+    }
+
+    @Published public var launchAtLoginStatusMessage: String? = nil
+
     @Published public var shakeToSummonEnabled: Bool {
         didSet { UserDefaults.standard.set(shakeToSummonEnabled, forKey: "shakeToSummonEnabled") }
     }
@@ -72,6 +82,8 @@ public final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
     }
 
+    private var isSyncingLaunchAtLogin: Bool = false
+
     private init() {
         let defaults = UserDefaults.standard
         defaults.register(defaults: [
@@ -84,6 +96,7 @@ public final class AppSettings: ObservableObject {
             "soundEffectsEnabled": true
         ])
 
+        self.launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
         self.shakeToSummonEnabled = defaults.bool(forKey: "shakeToSummonEnabled")
         self.optionDragToSummonEnabled = defaults.bool(forKey: "optionDragToSummonEnabled")
         let rawSens = defaults.string(forKey: "shakeSensitivity") ?? ShakeSensitivity.medium.rawValue
@@ -93,4 +106,31 @@ public final class AppSettings: ObservableObject {
         self.autoCollapseEmptyShelfSeconds = defaults.double(forKey: "autoCollapseEmptyShelfSeconds")
         self.soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
     }
+
+    public func refreshLaunchAtLoginState() {
+        isSyncingLaunchAtLogin = true
+        launchAtLoginEnabled = (SMAppService.mainApp.status == .enabled)
+        isSyncingLaunchAtLogin = false
+    }
+
+    private func updateLaunchAtLogin(enabled: Bool) {
+        do {
+            if enabled {
+                if SMAppService.mainApp.status == .enabled {
+                    try? SMAppService.mainApp.unregister()
+                }
+                try SMAppService.mainApp.register()
+                launchAtLoginStatusMessage = "已开启开机自启"
+            } else {
+                try SMAppService.mainApp.unregister()
+                launchAtLoginStatusMessage = "已关闭开机自启"
+            }
+        } catch {
+            isSyncingLaunchAtLogin = true
+            launchAtLoginEnabled = (SMAppService.mainApp.status == .enabled)
+            isSyncingLaunchAtLogin = false
+            launchAtLoginStatusMessage = "设置失败：\(error.localizedDescription)"
+        }
+    }
 }
+

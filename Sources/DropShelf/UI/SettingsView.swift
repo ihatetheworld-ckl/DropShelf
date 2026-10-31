@@ -37,6 +37,22 @@ public struct SettingsView: View {
 
                 Divider()
 
+                GroupBox(label: Label("系统与启动", systemImage: "power.circle")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Toggle("登录 macOS 时自动启动 DropShelf（开机自启）", isOn: $settings.launchAtLoginEnabled)
+                            Spacer()
+                            if let msg = settings.launchAtLoginStatusMessage {
+                                Text(msg)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(settings.launchAtLoginEnabled ? .green : .secondary)
+                            }
+                        }
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 GroupBox(label: Label("唤起手势与触发方式", systemImage: "cursorarrow.motionlines")) {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("拖拽文件/内容时晃动鼠标唤起架子 (Shake to Summon)", isOn: $settings.shakeToSummonEnabled)
@@ -122,6 +138,9 @@ public struct SettingsView: View {
             }
             .padding(20)
         }
-        .frame(minWidth: 460, idealWidth: 480, maxWidth: .infinity, minHeight: 380, idealHeight: 500, maxHeight: .infinity)
+        .frame(minWidth: 460, idealWidth: 480, maxWidth: .infinity, minHeight: 380, idealHeight: 540, maxHeight: .infinity)
+        .onAppear {
+            settings.refreshLaunchAtLoginState()
+        }
     }
 }

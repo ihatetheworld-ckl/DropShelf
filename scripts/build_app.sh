@@ -42,6 +42,7 @@ swiftc -O \
     -framework UniformTypeIdentifiers \
     -framework Carbon \
     -framework Quartz \
+    -framework ServiceManagement \
     "${SWIFT_SOURCES[@]}" \
     -o "$BUILD_DIR/${APP_NAME}-arm64"
 
@@ -55,6 +56,7 @@ swiftc -O \
     -framework UniformTypeIdentifiers \
     -framework Carbon \
     -framework Quartz \
+    -framework ServiceManagement \
     "${SWIFT_SOURCES[@]}" \
     -o "$BUILD_DIR/${APP_NAME}-x86_64"
 

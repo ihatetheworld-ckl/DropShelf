@@ -19,7 +19,8 @@ let package = Package(
                 .linkedFramework("QuickLookUI"),
                 .linkedFramework("QuickLookThumbnailing"),
                 .linkedFramework("UniformTypeIdentifiers"),
-                .linkedFramework("Carbon")
+                .linkedFramework("Carbon"),
+                .linkedFramework("ServiceManagement")
             ]
         ),
         .testTarget(
