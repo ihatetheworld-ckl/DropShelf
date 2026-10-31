@@ -34,14 +34,25 @@
 - macOS 13.0 (Ventura) 或更高版本
 - Xcode Command Line Tools (`xcode-select --install`)
 
-### 一键编译并安装到 `/Applications`
+### 方式一：直接下载安装包（推荐）
+
+前往 [**GitHub Releases**](https://github.com/ihatetheworld-ckl/DropShelf/releases) 页面下载最新版本的安装包（Universal 通用架构，同时原生支持 Apple Silicon M 系列与 Intel 芯片）：
+- **`DropShelf-v1.0.0-macOS-Universal.dmg`**：双击挂载后，将 `DropShelf.app` 拖入 `Applications` 文件夹即可。
+- **`DropShelf-v1.0.0-macOS-Universal.zip`**：解压后直接将 `DropShelf.app` 移入 `/Applications` 目录。
+
+> 💡 **首次打开提示**：由于应用采用开源本地签名（未购买 Apple 付费开发者证书公证），如果首次打开提示“无法验证开发者”，请在终端运行以下命令移除隔离属性即可正常打开：
+> ```bash
+> xattr -cr /Applications/DropShelf.app
+> ```
+
+### 方式二：从源码一键编译并安装
 
 ```bash
 # 1. 克隆仓库
 git clone https://github.com/ihatetheworld-ckl/DropShelf.git
 cd DropShelf
 
-# 2. 运行一键构建脚本（自动编译 Release 二进制、生成高清矢量图标并完成本地签名）
+# 2. 运行一键构建脚本（自动编译 Universal 通用二进制、生成高清矢量图标并完成本地签名）
 ./scripts/build_app.sh
 
 # 3. 移入应用程序目录并启动

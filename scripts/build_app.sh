@@ -43,7 +43,23 @@ swiftc -O \
     -framework Carbon \
     -framework Quartz \
     "${SWIFT_SOURCES[@]}" \
-    -o "$MACOS_DIR/$APP_NAME"
+    -o "$BUILD_DIR/${APP_NAME}-arm64"
+
+swiftc -O \
+    -module-cache-path "$MODULE_CACHE_DIR" \
+    -target x86_64-apple-macosx13.0 \
+    -framework AppKit \
+    -framework SwiftUI \
+    -framework QuickLookUI \
+    -framework QuickLookThumbnailing \
+    -framework UniformTypeIdentifiers \
+    -framework Carbon \
+    -framework Quartz \
+    "${SWIFT_SOURCES[@]}" \
+    -o "$BUILD_DIR/${APP_NAME}-x86_64"
+
+lipo -create -output "$MACOS_DIR/$APP_NAME" "$BUILD_DIR/${APP_NAME}-arm64" "$BUILD_DIR/${APP_NAME}-x86_64"
+rm -f "$BUILD_DIR/${APP_NAME}-arm64" "$BUILD_DIR/${APP_NAME}-x86_64"
 
 echo "==> [2/4] Assembling $APP_NAME.app bundle..."
 chmod +x "$MACOS_DIR/$APP_NAME"
@@ -143,3 +159,4 @@ xattr -cr "$APP_BUNDLE" 2>/dev/null || true
 codesign --force --deep --sign - "$APP_BUNDLE"
 
 echo "==> Build complete: $APP_BUNDLE"
+
