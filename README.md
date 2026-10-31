@@ -38,7 +38,7 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/你的用户名/DropShelf.git
+git clone https://github.com/ihatetheworld-ckl/DropShelf.git
 cd DropShelf
 
 # 2. 运行一键构建脚本（自动编译 Release 二进制、生成高清矢量图标并完成本地签名）
