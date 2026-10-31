@@ -60,18 +60,18 @@ public struct ShelfContentView: View {
             }
             .help("按住图标可直接拖出文件")
 
-            ZStack {
-                HStack {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("架子 #\(viewModel.indexNumber)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.primary)
-                        Text("\(viewModel.items.count) 个文件")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer(minLength: 4)
+            HStack {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("架子 #\(viewModel.indexNumber)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Text("\(viewModel.items.count) 个文件")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
                 }
+                Spacer(minLength: 4)
+            }
+            .overlay {
                 WindowDragHandleOverlay(onDoubleClick: {
                     viewModel.toggleCollapsed()
                 })
@@ -191,7 +191,8 @@ public struct ShelfContentView: View {
                     viewModel.toggleCollapsed()
                 })
             }
-            .frame(maxWidth: .infinity, minHeight: 22)
+            .frame(maxWidth: .infinity)
+            .frame(height: 22)
             .help("按住此处可拖动架子窗口（双击收起）")
 
             if viewModel.items.count > 1 {
@@ -260,6 +261,7 @@ public struct ShelfContentView: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
         }
+        .frame(height: 24)
     }
 
     // MARK: - Empty Drop Zone
@@ -375,21 +377,21 @@ public struct ShelfContentView: View {
                 .frame(width: 110, height: 84)
                 .help("按住文件图标拖出文件 · 双击打开")
 
-                ZStack {
-                    VStack(spacing: 2) {
-                        if let first = viewModel.items.first {
-                            Text(viewModel.items.count == 1 ? first.displayName : "\(first.displayName) 等 \(viewModel.items.count) 项")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.primary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .padding(.horizontal, 10)
-                        }
-
-                        Text("拖图标取出文件 · 拖空白处移动架子")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
+                VStack(spacing: 2) {
+                    if let first = viewModel.items.first {
+                        Text(viewModel.items.count == 1 ? first.displayName : "\(first.displayName) 等 \(viewModel.items.count) 项")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .padding(.horizontal, 10)
                     }
+
+                    Text("拖图标取出文件 · 拖空白处移动架子")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                .overlay {
                     WindowDragHandleOverlay()
                 }
             }
