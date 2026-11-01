@@ -45,46 +45,31 @@ public final class ShelfDropDestinationView: NSView {
         if DragSourceMonitor.shared.isDraggingFromShelf && (sender.draggingSource as? NSView)?.window == self.window {
             return []
         }
-        DispatchQueue.main.async { [weak self] in
-            self?.viewModel?.isDropTargeted = true
-            self?.viewModel?.cancelEmptyShelfTimeout()
-        }
+        guard let vm = viewModel, !vm.isClosed else { return [] }
+        vm.isDropTargeted = true
+        vm.cancelEmptyShelfTimeout()
         return .copy
     }
 
     public override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
-        if DragSourceMonitor.shared.isDraggingFromShelf && (sender.draggingSource as? NSView)?.window == self.window {
-            return []
-        }
-        return .copy
+        if (sender.draggingSource as? NSView)?.window == window { return [] }
+        return viewModel?.isClosed == false ? .copy : []
     }
 
-    public override func draggingExited(_ sender: NSDraggingInfo?) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, let vm = self.viewModel else { return }
-            vm.isDropTargeted = false
-            if vm.items.isEmpty {
-                vm.scheduleEmptyShelfTimeout()
-            }
-        }
+    public override func draggingExited(_ sender: NSDraggingInfo?) { resetDropState() }
+    public override func concludeDragOperation(_ sender: NSDraggingInfo?) { resetDropState() }
+    private func resetDropState() {
+        viewModel?.isDropTargeted = false
+        viewModel?.scheduleEmptyShelfTimeout()
     }
-
     public override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        let pasteboard = sender.draggingPasteboard
-        let extracted = PasteboardExtractor.extractItems(from: pasteboard)
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, let vm = self.viewModel else { return }
-            vm.isDropTargeted = false
-            if !extracted.isEmpty {
-                vm.addItems(extracted)
-                if vm.isCollapsed {
-                    vm.toggleCollapsed()
-                }
-            } else if vm.items.isEmpty {
-                vm.scheduleEmptyShelfTimeout()
-            }
-        }
-        return !extracted.isEmpty
+        guard let vm = viewModel, !vm.isClosed,
+              (sender.draggingSource as? NSView)?.window != window else { return false }
+        vm.isDropTargeted = false
+        let accepted = vm.addFromPasteboard(sender.draggingPasteboard)
+        if accepted && vm.isCollapsed { vm.toggleCollapsed() }
+        if !accepted { vm.scheduleEmptyShelfTimeout() }
+        return accepted
     }
 }
 
@@ -97,6 +82,7 @@ public final class MultiFileDragSourceNSView: NSView, NSDraggingSource {
     public var onDragCompleted: ((Set<UUID>, NSDragOperation) -> Void)?
 
     private var mouseDownEvent: NSEvent?
+    private var draggedItems: [ShelfItem] = []
     private var draggedItemIDs: Set<UUID> = []
 
     public override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
@@ -136,16 +122,12 @@ public final class MultiFileDragSourceNSView: NSView, NSDraggingSource {
         self.mouseDownEvent = nil
         guard let items = itemsProvider?(), !items.isEmpty else { return }
 
+        guard items.allSatisfy({ $0.preserveForExternalUse() }) else { NSSound.beep(); return }
+        draggedItems = items
         draggedItemIDs = Set(items.map { $0.id })
 
         var draggingItems: [NSDraggingItem] = []
         for (idx, shelfItem) in items.enumerated() {
-            let pasteboardItem = NSPasteboardItem()
-            pasteboardItem.setString(shelfItem.fileURL.absoluteString, forType: .fileURL)
-            if let origURL = shelfItem.originalURL {
-                pasteboardItem.setString(origURL.absoluteString, forType: .URL)
-            }
-
             let dragItem = NSDraggingItem(pasteboardWriter: shelfItem.fileURL as NSURL)
             let iconSize = NSSize(width: 68, height: 68)
             let offset = CGFloat(min(idx, 4)) * 4.0
@@ -170,11 +152,11 @@ public final class MultiFileDragSourceNSView: NSView, NSDraggingSource {
     public func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         switch context {
         case .outsideApplication:
-            return [.copy, .move, .link, .generic]
+            return [.copy, .link, .generic]
         case .withinApplication:
-            return [.copy, .move]
+            return [.copy]
         @unknown default:
-            return [.copy, .move]
+            return [.copy]
         }
     }
 
@@ -182,6 +164,7 @@ public final class MultiFileDragSourceNSView: NSView, NSDraggingSource {
         DragSourceMonitor.shared.activeDragCount = max(0, DragSourceMonitor.shared.activeDragCount - 1)
         let ids = draggedItemIDs
         draggedItemIDs.removeAll()
+        defer { draggedItems.removeAll() }
         if operation != [] {
             onDragCompleted?(ids, operation)
         }

@@ -1,8 +1,10 @@
 import Carbon
+import Combine
 import AppKit
 import Foundation
 
-public final class HotKeyManager {
+public final class HotKeyManager: ObservableObject {
+    @Published public private(set) var registrationStatus: String?
     public static let shared = HotKeyManager()
 
     public var onSummonShelfShortcut: (() -> Void)?
@@ -24,7 +26,8 @@ public final class HotKeyManager {
 
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
-        InstallEventHandler(
+        registrationStatus = nil
+        let handlerStatus = InstallEventHandler(
             GetApplicationEventTarget(),
             { _, event, userData -> OSStatus in
                 guard let event = event, let userData = userData else { return OSStatus(eventNotHandledErr) }
@@ -56,9 +59,15 @@ public final class HotKeyManager {
             &eventHandlerRef
         )
 
+        guard handlerStatus == noErr else {
+            registrationStatus = "无法安装快捷键事件处理器：\(handlerStatus)"
+            NSLog("DropShelf: %@", registrationStatus!)
+            return
+        }
+
         // HotKey 1: Shift + Command + D (kVK_ANSI_D = 0x02) -> Summon new shelf at cursor
         let summonID = EventHotKeyID(signature: OSType(0x44534846), id: 1) // 'DSHF'
-        RegisterEventHotKey(
+        let summonStatus = RegisterEventHotKey(
             UInt32(kVK_ANSI_D),
             UInt32(cmdKey | shiftKey),
             summonID,
@@ -67,9 +76,9 @@ public final class HotKeyManager {
             &summonHotKeyRef
         )
 
-        // HotKey 2: Option + Space (kVK_Space = 0x31) -> Summon shelf / pasteboard shelf
+        // HotKey 2: Option + Shift + Space -> Toggle all shelves
         let toggleID = EventHotKeyID(signature: OSType(0x44534846), id: 2)
-        RegisterEventHotKey(
+        let toggleStatus = RegisterEventHotKey(
             UInt32(kVK_Space),
             UInt32(optionKey | shiftKey),
             toggleID,
@@ -77,6 +86,11 @@ public final class HotKeyManager {
             0,
             &toggleHotKeyRef
         )
+        if summonStatus != noErr || toggleStatus != noErr {
+            registrationStatus = "快捷键注册失败（新建：\(summonStatus)，折叠：\(toggleStatus)）。请检查快捷键冲突或是否运行了多个版本。"
+        }
+        NSLog("DropShelf hotkeys: summon=%d toggle=%d", summonStatus, toggleStatus)
+
     }
 
     public func unregisterAll() {

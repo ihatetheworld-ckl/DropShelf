@@ -14,13 +14,13 @@ public final class ShelfManager: ObservableObject {
     public func summonShelf(at point: CGPoint? = nil, initialItems: [ShelfItem] = []) -> ShelfPanel {
         let cursor = point ?? NSEvent.mouseLocation
 
-        // If an empty shelf is already very close to cursor, reuse and bring it forward
+        // Reuse an idle, unpinned empty shelf; never relocate a pinned or busy one.
         if initialItems.isEmpty,
-           let existingEmpty = activePanels.first(where: { $0.viewModel.items.isEmpty }) {
+           let existingEmpty = activePanels.first(where: { $0.viewModel.items.isEmpty && !$0.viewModel.isPinned && !$0.viewModel.isClosed && !$0.viewModel.isBusy && !$0.viewModel.isImporting }) {
             let center = CGPoint(x: cursor.x, y: cursor.y)
-            let size = existingEmpty.frame.size
-            let newOrigin = NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2)
-            existingEmpty.setFrameOrigin(newOrigin)
+            let size = ShelfPanel.expandedSize
+            existingEmpty.viewModel.isCollapsed = false
+            existingEmpty.setFrame(NSRect(origin: ShelfPanel.clampedOrigin(forCenter: center, size: size), size: size), display: true)
             existingEmpty.orderFrontRegardless()
             existingEmpty.viewModel.scheduleEmptyShelfTimeout()
             return existingEmpty
@@ -56,8 +56,9 @@ public final class ShelfManager: ObservableObject {
 
     @discardableResult
     public func summonShelfFromPasteboard(_ pasteboard: NSPasteboard = .general) -> ShelfPanel? {
-        let items = PasteboardExtractor.extractItems(from: pasteboard)
-        return summonShelf(at: NSEvent.mouseLocation, initialItems: items)
+        let panel = summonShelf(at: NSEvent.mouseLocation)
+        _ = panel.viewModel.addFromPasteboard(pasteboard)
+        return panel
     }
 
     public func closeAllShelves() {
@@ -72,13 +73,8 @@ public final class ShelfManager: ObservableObject {
             _ = summonShelf(at: NSEvent.mouseLocation)
             return
         }
-        let anyExpanded = activePanels.contains { !$0.viewModel.isCollapsed }
-        for panel in activePanels {
-            if panel.viewModel.isCollapsed == anyExpanded {
-                panel.viewModel.toggleCollapsed()
-            }
-            panel.orderFrontRegardless()
-        }
+        ShelfViewModel.toggleAllCollapsed(activePanels.map { $0.viewModel })
+        for panel in activePanels where !panel.viewModel.isClosed { panel.orderFrontRegardless() }
     }
 
     private func removeShelf(id: UUID) {

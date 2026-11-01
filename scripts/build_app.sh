@@ -2,10 +2,14 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="$PROJECT_DIR/build"
+BUILD_DIR="${DROPSHELF_BUILD_DIR:-$PROJECT_DIR/build}"
 MODULE_CACHE_DIR="$BUILD_DIR/ModuleCache"
 APP_NAME="DropShelf"
-APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
+mkdir -p "$BUILD_DIR"
+FINAL_BUNDLE="$BUILD_DIR/$APP_NAME.app"
+APP_BUNDLE="$(mktemp -d "$BUILD_DIR/.app-build.XXXXXX")/$APP_NAME.app"
+STAGING_DIR="$(dirname "$APP_BUNDLE")"
+trap 'rm -rf "$STAGING_DIR"' EXIT
 CONTENTS_DIR="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
@@ -22,6 +26,8 @@ SWIFT_SOURCES=(
     Sources/DropShelf/Models/ShelfItem.swift
     Sources/DropShelf/Core/ShakeDetector.swift
     Sources/DropShelf/Core/HotKeyManager.swift
+    Sources/DropShelf/Core/TemporaryFileStore.swift
+    Sources/DropShelf/Core/FileOperationService.swift
     Sources/DropShelf/Core/ShelfViewModel.swift
     Sources/DropShelf/Core/ShelfManager.swift
     Sources/DropShelf/UI/DragOutContainerView.swift
@@ -153,12 +159,21 @@ for (px, filename) in sizes {
 }
 EOF
 
-iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/AppIcon.icns" || true
+iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/AppIcon.icns"
 rm -rf "$ICONSET_DIR"
 
 echo "==> [4/4] Signing $APP_NAME.app (ad-hoc)..."
 xattr -cr "$APP_BUNDLE" 2>/dev/null || true
 codesign --force --deep --sign - "$APP_BUNDLE"
 
-echo "==> Build complete: $APP_BUNDLE"
+codesign --verify --strict "$APP_BUNDLE"
+if [[ -e "$FINAL_BUNDLE" ]]; then
+    mv "$FINAL_BUNDLE" "$BUILD_DIR/DropShelf-previous-$(date +%Y%m%d-%H%M%S).app"
+fi
+mv "$APP_BUNDLE" "$FINAL_BUNDLE"
+# File Provider can attach FinderInfo when a bundle is moved into Documents.
+# Validate the final location as well, so build success never hides this error.
+xattr -cr "$FINAL_BUNDLE" 2>/dev/null || true
+codesign --verify --strict "$FINAL_BUNDLE"
+echo "==> Build complete: $FINAL_BUNDLE"
 

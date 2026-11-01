@@ -49,7 +49,7 @@ public struct ShelfContentView: View {
             .overlay {
                 if !viewModel.items.isEmpty {
                     DragSourceOverlay(
-                        itemsProvider: { viewModel.effectiveDragItems },
+                        itemsProvider: { viewModel.isBusy ? [] : viewModel.effectiveDragItems },
                         onDragCompleted: { draggedIDs, _ in
                             if AppSettings.shared.removeItemsAfterDragOut {
                                 viewModel.removeItems(withIDs: draggedIDs)
@@ -125,6 +125,7 @@ public struct ShelfContentView: View {
                     .background(Color.black.opacity(0.78))
                     .clipShape(Capsule())
                     .padding(.bottom, 34)
+                    .allowsHitTesting(false)
                     .transition(.opacity.combined(with: .scale))
             }
         }
@@ -144,6 +145,7 @@ public struct ShelfContentView: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .disabled(viewModel.isBusy)
             .help("关闭架子")
 
             Button {
@@ -212,34 +214,34 @@ public struct ShelfContentView: View {
                 Button("快速预览 (Space)") {
                     viewModel.onRequestQuickLook?()
                 }
-                .disabled(viewModel.items.isEmpty)
+                .disabled(viewModel.items.isEmpty || viewModel.isBusy)
 
                 Divider()
 
                 Button("打包为 ZIP 压缩包") {
                     viewModel.createZipArchive()
                 }
-                .disabled(viewModel.items.isEmpty)
+                .disabled(viewModel.items.isEmpty || viewModel.isBusy)
 
                 Button("复制文件到剪贴板 (⌘C)") {
                     viewModel.copyItemsToClipboard()
                 }
-                .disabled(viewModel.items.isEmpty)
+                .disabled(viewModel.items.isEmpty || viewModel.isBusy)
 
                 Button("复制文件路径") {
                     viewModel.copyPathsToClipboard()
                 }
-                .disabled(viewModel.items.isEmpty)
+                .disabled(viewModel.items.isEmpty || viewModel.isBusy)
 
                 Button("在 Finder 中显示") {
                     viewModel.revealInFinder()
                 }
-                .disabled(viewModel.items.isEmpty)
+                .disabled(viewModel.items.isEmpty || viewModel.isBusy)
 
                 Button("移动到指定文件夹...") {
                     viewModel.moveToDestinationFolder()
                 }
-                .disabled(viewModel.items.isEmpty)
+                .disabled(viewModel.items.isEmpty || viewModel.isBusy)
 
                 Divider()
 
@@ -252,6 +254,7 @@ public struct ShelfContentView: View {
                     Button("清空架子", role: .destructive) {
                         viewModel.clearAll()
                     }
+                    .disabled(viewModel.isBusy)
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -355,13 +358,13 @@ public struct ShelfContentView: View {
                     }
 
                     DragSourceOverlay(
-                        itemsProvider: { viewModel.effectiveDragItems },
+                        itemsProvider: { viewModel.isBusy ? [] : viewModel.effectiveDragItems },
                         onSingleClick: { _ in
                             viewModel.selectAll()
                         },
                         onDoubleClick: {
                             if let first = viewModel.items.first {
-                                NSWorkspace.shared.open(first.fileURL)
+                                viewModel.openItems([first])
                             }
                         },
                         onRightClickMenu: {
@@ -434,7 +437,7 @@ public struct ShelfContentView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 DragSourceOverlay(
-                    itemsProvider: { viewModel.effectiveDragItems },
+                    itemsProvider: { viewModel.isBusy ? [] : viewModel.effectiveDragItems },
                     onSingleClick: { _ in
                         viewModel.selectAll()
                     },
@@ -463,7 +466,8 @@ public struct ShelfContentView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
-            .help("一键打包为 ZIP")
+            .disabled(viewModel.isBusy)
+            .help("打包所选项目（未选择时打包全部）")
 
             Button {
                 viewModel.onRequestQuickLook?()
@@ -563,6 +567,7 @@ private struct ShelfGridItemCell: View {
 
             DragSourceOverlay(
                 itemsProvider: {
+                    if viewModel.isBusy { return [] }
                     if isSelected {
                         return viewModel.effectiveDragItems
                     } else {
@@ -574,7 +579,7 @@ private struct ShelfGridItemCell: View {
                     viewModel.toggleSelection(for: item, exclusive: !isCommand)
                 },
                 onDoubleClick: {
-                    NSWorkspace.shared.open(item.fileURL)
+                    viewModel.openItems([item])
                 },
                 onRightClickMenu: contextMenuBuilder,
                 onDragCompleted: { draggedIDs, _ in
@@ -602,9 +607,7 @@ private final class ContextMenuActions: NSObject {
 
     @objc func openSelected(_ sender: NSMenuItem) {
         guard let vm = sender.representedObject as? ShelfViewModel else { return }
-        for item in vm.effectiveDragItems {
-            NSWorkspace.shared.open(item.fileURL)
-        }
+        vm.openItems(vm.effectiveDragItems)
     }
 
     @objc func quickLook(_ sender: NSMenuItem) {

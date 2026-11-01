@@ -40,9 +40,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        _ = TemporaryFileStore.shared
         setupStatusItem()
         setupShakeDetector()
         setupHotKeys()
+    }
+
+    public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let pending = ShelfManager.shared.activePanels.filter { $0.viewModel.isBusy || $0.viewModel.isImporting }
+        guard pending.isEmpty else {
+            for panel in pending { panel.viewModel.showToast("文件操作进行中，完成后请再次退出") }
+            NSSound.beep()
+            return .terminateCancel
+        }
+        return .terminateNow
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
@@ -56,19 +67,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             let image = NSImage(systemSymbolName: "tray.2.fill", accessibilityDescription: "DropShelf")
             image?.isTemplate = true
             button.image = image
-            button.toolTip = "DropShelf — 零延迟悬浮文件架（拖拽文件到此图标也可直接新建架子）"
+            button.toolTip = "DropShelf — 原生悬浮文件架（拖拽文件到此图标也可直接新建架子）"
 
             let overlay = StatusBarDropOverlayView(frame: button.bounds)
             overlay.autoresizingMask = [.width, .height]
             overlay.onDropPasteboard = { [weak self] pasteboard in
-                let items = PasteboardExtractor.extractItems(from: pasteboard)
-                guard !items.isEmpty else { return false }
-                DispatchQueue.main.async {
-                    guard let self = self else { return }
-                    let location = self.statusItemScreenAnchor()
-                    _ = ShelfManager.shared.summonShelf(at: location, initialItems: items)
+                guard let self = self else { return false }
+                let location = self.statusItemScreenAnchor()
+                return PasteboardExtractor.extractItemsAsync(from: pasteboard) { items, errors in
+                    guard !items.isEmpty else {
+                        let alert = NSAlert()
+                        alert.messageText = "无法添加拖入内容"
+                        alert.informativeText = errors.joined(separator: "\n")
+                        alert.runModal()
+                        return
+                    }
+                    let panel = ShelfManager.shared.summonShelf(at: location, initialItems: items)
+                    if !errors.isEmpty { panel.viewModel.showToast("部分项目未添加：\(errors.count) 项失败") }
                 }
-                return true
             }
             button.addSubview(overlay)
         }
@@ -167,9 +183,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func createShelfFromClipboard() {
-        let items = PasteboardExtractor.extractItems(from: .general)
-        let anchor = statusItemScreenAnchor()
-        _ = ShelfManager.shared.summonShelf(at: anchor, initialItems: items)
+        let panel = ShelfManager.shared.summonShelf(at: statusItemScreenAnchor())
+        _ = panel.viewModel.addFromPasteboard(.general)
     }
 
     @objc private func toggleAllShelves() {
@@ -200,7 +215,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quitApp() {
-        ShelfManager.shared.closeAllShelves()
         NSApp.terminate(nil)
     }
 }

@@ -4,6 +4,8 @@ import SwiftUI
 public struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
 
+    @ObservedObject private var hotKeys = HotKeyManager.shared
+
     public init() {}
 
     public var body: some View {
@@ -28,7 +30,7 @@ public struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("DropShelf 偏好设置")
                             .font(.system(size: 16, weight: .bold))
-                        Text("零延迟、纯原生的 macOS 悬浮文件暂存架（无任何等待限制）")
+                        Text("使用 AppKit 与 SwiftUI 构建的 macOS 悬浮文件暂存架")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                     }
@@ -81,6 +83,12 @@ public struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("将文件拖出架子后自动从架子移除", isOn: $settings.removeItemsAfterDragOut)
                         Toggle("架子内文件全部拖出后自动关闭架子（未固定时）", isOn: $settings.autoCloseWhenEmptied)
+                        Button("在 Finder 中查看临时文件缓存…") {
+                            NSWorkspace.shared.open(TemporaryFileStore.shared.root)
+                        }
+                        Text("未导出缓存随最后一个引用释放；已拖出、复制或打开的文件保留，避免外部链接失效。确认不再使用后可在 Finder 手动清理。")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
                         Toggle("启用提示音效", isOn: $settings.soundEffectsEnabled)
 
                         HStack {
@@ -100,6 +108,9 @@ public struct SettingsView: View {
 
                 GroupBox(label: Label("全局快捷键说明", systemImage: "command")) {
                     VStack(alignment: .leading, spacing: 6) {
+                        if let message = hotKeys.registrationStatus {
+                            Text(message).foregroundColor(.orange)
+                        }
                         HStack {
                             Text("在鼠标位置新建空白架子：")
                                 .foregroundColor(.secondary)

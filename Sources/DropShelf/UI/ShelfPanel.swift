@@ -4,6 +4,7 @@ import SwiftUI
 
 public final class ShelfPanel: NSPanel, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     public let viewModel: ShelfViewModel
+    private var previewItems: [ShelfItem] = []
     public var onCloseShelf: ((UUID) -> Void)?
 
     public static let expandedSize = NSSize(width: 254, height: 238)
@@ -60,10 +61,20 @@ public final class ShelfPanel: NSPanel, QLPreviewPanelDataSource, QLPreviewPanel
             self.resizePanel(collapsed: isCollapsed)
         }
 
+        viewModel.onRequestOperationReport = { text in
+            let alert = NSAlert()
+            alert.messageText = "文件操作结果"
+            alert.informativeText = text
+            alert.addButton(withTitle: "好")
+            alert.runModal()
+        }
+
         viewModel.onRequestQuickLook = { [weak self] in
             self?.toggleQuickLookPreview()
         }
     }
+
+    public override func close() { closeShelfAnimated() }
 
     public override var canBecomeKey: Bool {
         return true
@@ -128,13 +139,13 @@ public final class ShelfPanel: NSPanel, QLPreviewPanelDataSource, QLPreviewPanel
     }
 
     public func closeShelfAnimated() {
-        viewModel.cancelEmptyShelfTimeout()
-        let itemsToCleanup = viewModel.items
-        DispatchQueue.main.asyncAfter(deadline: .now() + 30.0) {
-            for item in itemsToCleanup {
-                item.cleanupIfNeeded()
-            }
+        guard viewModel.beginClosing() else { return }
+        if QLPreviewPanel.sharedPreviewPanelExists(), let preview = QLPreviewPanel.shared(), preview.dataSource === self {
+            preview.orderOut(nil)
+            preview.dataSource = nil
+            preview.delegate = nil
         }
+        previewItems.removeAll()
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.14
             self.animator().alphaValue = 0.0
@@ -167,12 +178,13 @@ public final class ShelfPanel: NSPanel, QLPreviewPanelDataSource, QLPreviewPanel
 
     // MARK: - QuickLook Support
     public func toggleQuickLookPreview() {
-        guard !viewModel.items.isEmpty else { return }
+        guard !viewModel.items.isEmpty, viewModel.prepareForExternalUse(viewModel.effectiveDragItems) else { return }
         self.makeKeyAndOrderFront(nil)
         if let panel = QLPreviewPanel.shared() {
             if QLPreviewPanel.sharedPreviewPanelExists() && panel.isVisible {
                 panel.orderOut(nil)
             } else {
+                previewItems = viewModel.effectiveDragItems
                 panel.dataSource = self
                 panel.delegate = self
                 panel.reloadData()
@@ -182,31 +194,36 @@ public final class ShelfPanel: NSPanel, QLPreviewPanelDataSource, QLPreviewPanel
     }
 
     public override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
-        return true
+        return !viewModel.isClosed && (!viewModel.items.isEmpty || !previewItems.isEmpty)
     }
 
     public override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        guard !viewModel.isClosed else { return }
+        previewItems = viewModel.effectiveDragItems
         panel.dataSource = self
         panel.delegate = self
     }
 
     public override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
-        panel.dataSource = nil
-        panel.delegate = nil
+        if panel.dataSource === self {
+            panel.dataSource = nil
+            panel.delegate = nil
+        }
+        previewItems.removeAll()
     }
 
     public func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
-        return viewModel.effectiveDragItems.count
+        return previewItems.count
     }
 
     public func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
-        let items = viewModel.effectiveDragItems
+        let items = previewItems
         guard index >= 0 && index < items.count else { return nil }
         return items[index].fileURL as NSURL
     }
 
     // MARK: - Helpers
-    private static func clampedOrigin(forCenter center: CGPoint, size: NSSize) -> NSPoint {
+    static func clampedOrigin(forCenter center: CGPoint, size: NSSize) -> NSPoint {
         let screen = NSScreen.screens.first(where: { NSMouseInRect(center, $0.frame, false) }) ?? NSScreen.main
         let visibleFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
 

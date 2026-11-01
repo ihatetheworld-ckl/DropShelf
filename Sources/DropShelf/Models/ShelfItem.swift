@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import QuickLookThumbnailing
 import UniformTypeIdentifiers
+import ImageIO
 
 public enum ShelfItemKind: String, Codable {
     case file
@@ -18,7 +19,8 @@ public final class ShelfItem: ObservableObject, Identifiable, Equatable {
     public let displayName: String
     public let kind: ShelfItemKind
     public let fileSize: Int64
-    public let isTemporaryFile: Bool
+    private var temporaryResource: TemporaryResource?
+    public var isTemporaryFile: Bool { temporaryResource != nil }
     public let createdAt: Date
 
     @Published public var thumbnail: NSImage
@@ -35,7 +37,7 @@ public final class ShelfItem: ObservableObject, Identifiable, Equatable {
         self.fileURL = fileURL
         self.originalURL = originalURL
         self.displayName = displayName ?? fileURL.lastPathComponent
-        self.isTemporaryFile = isTemporaryFile
+        self.temporaryResource = TemporaryFileStore.shared.resource(for: fileURL)
         self.createdAt = Date()
 
         let resourceValues = try? fileURL.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .totalFileAllocatedSizeKey])
@@ -66,6 +68,12 @@ public final class ShelfItem: ObservableObject, Identifiable, Equatable {
         generateQuickLookThumbnail()
     }
 
+    convenience init(resource: TemporaryResource, originalURL: URL? = nil,
+                     displayName: String? = nil, kind: ShelfItemKind? = nil) {
+        self.init(fileURL: resource.fileURL, originalURL: originalURL, displayName: displayName, kind: kind)
+        self.temporaryResource = resource
+    }
+
     public static func == (lhs: ShelfItem, rhs: ShelfItem) -> Bool {
         lhs.id == rhs.id
     }
@@ -93,136 +101,109 @@ public final class ShelfItem: ObservableObject, Identifiable, Equatable {
         QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { [weak self] representation, _ in
             guard let self = self, let cgImage = representation?.cgImage else { return }
             let image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
-            DispatchQueue.main.async {
-                self.thumbnail = image
+            DispatchQueue.main.async { [weak self] in
+                self?.thumbnail = image
             }
         }
     }
 
-    public func cleanupIfNeeded() {
-        if isTemporaryFile {
-            try? FileManager.default.removeItem(at: fileURL)
-        }
+    /// Persist the export before publishing its URL to another process.
+    @discardableResult
+    public func preserveForExternalUse() -> Bool {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return false }
+        do { try temporaryResource?.preserveForExternalUse(); return true }
+        catch { return false }
     }
 }
 
 public enum PasteboardExtractor {
-    private static var tempDirectory: URL {
-        let base = FileManager.default.temporaryDirectory.appendingPathComponent("DropShelfItems", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: base.path) {
-            try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        }
-        return base
+    private enum Payload {
+        case file(URL, TemporaryResource?)
+        case image(Data)
+        case web(URL)
+        case text(String)
     }
-
+    private struct PreparedItem {
+        let url: URL
+        var resource: TemporaryResource? = nil
+        var original: URL? = nil
+        var name: String? = nil
+        var kind: ShelfItemKind? = nil
+        func makeItem() -> ShelfItem {
+            if let resource = resource {
+                return ShelfItem(resource: resource, originalURL: original, displayName: name, kind: kind)
+            }
+            return ShelfItem(fileURL: url, displayName: name, kind: kind)
+        }
+    }
+    // Pasteboard data must be captured before the drag session ends. PNG encoding
+    // and disk IO run on a worker; AppKit thumbnails and shelf state stay on main.
+    @discardableResult
+    static func extractItemsAsync(from pasteboard: NSPasteboard,
+                                  completion: @escaping ([ShelfItem], [String]) -> Void) -> Bool {
+        let payloads = capture(pasteboard)
+        guard !payloads.isEmpty else { return false }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = prepare(payloads)
+            DispatchQueue.main.async { completion(result.0.map { $0.makeItem() }, result.1) }
+        }
+        return true
+    }
+    /// Synchronous extraction is retained for small, in-process callers and tests.
     public static func extractItems(from pasteboard: NSPasteboard) -> [ShelfItem] {
-        var result: [ShelfItem] = []
-        var seenPaths = Set<String>()
-
-        // 1. Read File URLs first
-        let classes: [AnyClass] = [NSURL.self]
-        let options: [NSPasteboard.ReadingOptionKey: Any] = [
-            .urlReadingFileURLsOnly: true
-        ]
-        if let fileURLs = pasteboard.readObjects(forClasses: classes, options: options) as? [URL], !fileURLs.isEmpty {
-            for url in fileURLs {
-                let standardized = url.standardizedFileURL
-                guard FileManager.default.fileExists(atPath: standardized.path),
-                      !seenPaths.contains(standardized.path) else { continue }
-                seenPaths.insert(standardized.path)
-                result.append(ShelfItem(fileURL: standardized))
-            }
-        }
-
-        if !result.isEmpty {
-            return result
-        }
-
-        // 2. Check legacy NSFilenamesPboardType if any
-        if let filenames = pasteboard.propertyList(forType: NSPasteboard.PasteboardType("NSFilenamesPboardType")) as? [String] {
-            for path in filenames {
-                let url = URL(fileURLWithPath: path).standardizedFileURL
-                guard FileManager.default.fileExists(atPath: url.path),
-                      !seenPaths.contains(url.path) else { continue }
-                seenPaths.insert(url.path)
-                result.append(ShelfItem(fileURL: url))
-            }
-            if !result.isEmpty {
-                return result
-            }
-        }
-
-        // 3. Check Images (e.g. dragged from browser or screenshot)
-        if let image = NSImage(pasteboard: pasteboard),
-           let tiffData = image.tiffRepresentation,
-           let bitmap = NSBitmapImageRep(data: tiffData),
-           let pngData = bitmap.representation(using: .png, properties: [:]) {
-            let timestamp = Self.timestampString()
-            let filename = "Image-\(timestamp).png"
-            let fileURL = uniqueTempURL(filename: filename)
-            if (try? pngData.write(to: fileURL)) != nil {
-                result.append(ShelfItem(fileURL: fileURL, displayName: filename, kind: .image, isTemporaryFile: true))
-                return result
-            }
-        }
-
-        // 4. Check Web URLs
-        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
-           let webURL = urls.first(where: { !$0.isFileURL }) {
-            let host = webURL.host ?? "Link"
-            let filename = "\(host)-\(Self.timestampString()).webloc"
-            let fileURL = uniqueTempURL(filename: filename)
-            let plistDict: [String: Any] = ["URL": webURL.absoluteString]
-            if let data = try? PropertyListSerialization.data(fromPropertyList: plistDict, format: .xml, options: 0),
-               (try? data.write(to: fileURL)) != nil {
-                result.append(
-                    ShelfItem(
-                        fileURL: fileURL,
-                        originalURL: webURL,
-                        displayName: webURL.absoluteString,
-                        kind: .webURL,
-                        isTemporaryFile: true
-                    )
-                )
-                return result
-            }
-        }
-
-        // 5. Check Plain TextSnippet
-        if let text = pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !text.isEmpty {
-            let previewTitle = String(text.prefix(24))
-                .replacingOccurrences(of: "/", with: "-")
-                .replacingOccurrences(of: "\n", with: " ")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let safeName = previewTitle.isEmpty ? "Snippet-\(Self.timestampString())" : previewTitle
-            let filename = "\(safeName).txt"
-            let fileURL = uniqueTempURL(filename: filename)
-            if (try? text.write(to: fileURL, atomically: true, encoding: .utf8)) != nil {
-                result.append(ShelfItem(fileURL: fileURL, displayName: filename, kind: .text, isTemporaryFile: true))
-                return result
-            }
-        }
-
-        return result
+        prepare(capture(pasteboard)).0.map { $0.makeItem() }
     }
-
-    private static func uniqueTempURL(filename: String) -> URL {
-        var candidate = tempDirectory.appendingPathComponent(filename)
-        var counter = 1
-        let ext = candidate.pathExtension
-        let stem = candidate.deletingPathExtension().lastPathComponent
-        while FileManager.default.fileExists(atPath: candidate.path) {
-            let nextName = ext.isEmpty ? "\(stem)-\(counter)" : "\(stem)-\(counter).\(ext)"
-            candidate = tempDirectory.appendingPathComponent(nextName)
-            counter += 1
+    private static func capture(_ pb: NSPasteboard) -> [Payload] {
+        if let paths = pb.propertyList(forType: NSPasteboard.PasteboardType("NSFilenamesPboardType")) as? [String], !paths.isEmpty {
+            return paths.map { let url = URL(fileURLWithPath: $0).standardizedFileURL; return .file(url, TemporaryFileStore.shared.resource(for: url)) }
         }
-        return candidate
+        return (pb.pasteboardItems ?? []).compactMap { item in
+            if let string = item.string(forType: .fileURL), let url = URL(string: string), url.isFileURL {
+                return .file(url.standardizedFileURL, TemporaryFileStore.shared.resource(for: url))
+            }
+            if let data = item.data(forType: .png) ?? item.data(forType: .tiff) { return .image(data) }
+            if let string = item.string(forType: .URL), let url = URL(string: string), !url.isFileURL { return .web(url) }
+            if let text = item.string(forType: .string), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .text(text) }
+            return nil
+        }
     }
-
-    private static func timestampString() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HHmmss"
-        return formatter.string(from: Date())
+    private static func prepare(_ payloads: [Payload]) -> ([PreparedItem], [String]) {
+        var items: [PreparedItem] = []
+        var errors: [String] = []
+        var paths = Set<String>()
+        for payload in payloads {
+            do {
+                switch payload {
+                case .file(let url, let lease):
+                    guard FileManager.default.fileExists(atPath: url.path) else {
+                        throw NSError(domain: "DropShelf.Import", code: 1, userInfo: [NSLocalizedDescriptionKey: "文件不存在：" + url.lastPathComponent])
+                    }
+                    if paths.insert(url.path).inserted { items.append(PreparedItem(url: url, resource: lease)) }
+                case .image(let data):
+                    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { throw CocoaError(.fileReadCorruptFile) }
+                    let png = NSMutableData()
+                    guard let destination = CGImageDestinationCreateWithData(png, UTType.png.identifier as CFString, 1, nil) else { throw CocoaError(.fileWriteUnknown) }
+                    CGImageDestinationAddImage(destination, image, nil)
+                    guard CGImageDestinationFinalize(destination) else { throw CocoaError(.fileWriteUnknown) }
+                    let resource = try TemporaryFileStore.shared.createResource(filename: "Image.png")
+                    try (png as Data).write(to: resource.fileURL, options: .atomic)
+                    items.append(PreparedItem(url: resource.fileURL, resource: resource, kind: .image))
+                case .web(let url):
+                    let resource = try TemporaryFileStore.shared.createResource(filename: (url.host ?? "Link") + ".webloc")
+                    let data = try PropertyListSerialization.data(fromPropertyList: ["URL": url.absoluteString], format: .xml, options: 0)
+                    try data.write(to: resource.fileURL, options: .atomic)
+                    items.append(PreparedItem(url: resource.fileURL, resource: resource, original: url, name: url.absoluteString, kind: .webURL))
+                case .text(let text):
+                    let title = String(text.prefix(24)).replacingOccurrences(of: "/", with: "-")
+                        .replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+                    let name = (title.isEmpty || title.hasPrefix(".") ? "Snippet" : title) + ".txt"
+                    let resource = try TemporaryFileStore.shared.createResource(filename: name)
+                    try text.write(to: resource.fileURL, atomically: true, encoding: .utf8)
+                    items.append(PreparedItem(url: resource.fileURL, resource: resource, kind: .text))
+                }
+            } catch { errors.append(error.localizedDescription) }
+        }
+        return (items, errors)
     }
 }
