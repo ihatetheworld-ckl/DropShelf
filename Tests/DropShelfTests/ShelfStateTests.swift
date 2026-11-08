@@ -124,9 +124,20 @@ import Quartz
         let empty = ShelfViewModel(indexNumber: 1)
         let pinned = ShelfViewModel(indexNumber: 2)
         pinned.isPinned = true
+        let collapsed = expectation(description: "empty shelf collapses after timeout")
+        empty.onRequestResize = { value in
+            XCTAssertTrue(value)
+            collapsed.fulfill()
+        }
+        let pinnedResized = expectation(description: "pinned shelf must not collapse")
+        pinnedResized.isInverted = true
+        pinned.onRequestResize = { _ in pinnedResized.fulfill() }
         var closeCount = 0
         empty.onRequestClose = { closeCount += 1 }
-        try await Task.sleep(nanoseconds: 150_000_000)
+        // Wait for the Timer's actual callback, rather than racing its run-loop
+        // scheduling against a fixed Task.sleep on a loaded CI runner.
+        await fulfillment(of: [collapsed], timeout: 5)
+        await fulfillment(of: [pinnedResized], timeout: 0.2)
         XCTAssertTrue(empty.isCollapsed)
         XCTAssertFalse(pinned.isCollapsed)
         XCTAssertEqual(closeCount, 0)
