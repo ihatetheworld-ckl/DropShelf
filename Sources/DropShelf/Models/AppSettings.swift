@@ -82,6 +82,10 @@ public final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
     }
 
+    @Published public var hapticFeedbackEnabled: Bool {
+        didSet { UserDefaults.standard.set(hapticFeedbackEnabled, forKey: "hapticFeedbackEnabled") }
+    }
+
     private var isSyncingLaunchAtLogin: Bool = false
 
     private init() {
@@ -93,7 +97,8 @@ public final class AppSettings: ObservableObject {
             "autoCloseWhenEmptied": true,
             "removeItemsAfterDragOut": true,
             "autoCollapseEmptyShelfSeconds": 5.0,
-            "soundEffectsEnabled": true
+            "soundEffectsEnabled": true,
+            "hapticFeedbackEnabled": true
         ])
 
         self.launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
@@ -105,6 +110,7 @@ public final class AppSettings: ObservableObject {
         self.removeItemsAfterDragOut = defaults.bool(forKey: "removeItemsAfterDragOut")
         self.autoCollapseEmptyShelfSeconds = defaults.double(forKey: "autoCollapseEmptyShelfSeconds")
         self.soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
+        self.hapticFeedbackEnabled = defaults.bool(forKey: "hapticFeedbackEnabled")
     }
 
     public func refreshLaunchAtLoginState() {

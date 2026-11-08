@@ -7,8 +7,19 @@ public final class ShelfManager: ObservableObject {
 
     @Published public private(set) var activePanels: [ShelfPanel] = []
     private var nextShelfNumber: Int = 1
+    private let hapticFeedback: () -> Void
 
-    private init() {}
+    init(hapticFeedback: @escaping () -> Void = {
+        // Re-fetch the performer for each user action: input devices/settings can
+        // change. The system silently suppresses unsupported/unavailable feedback.
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+    }) {
+        self.hapticFeedback = hapticFeedback
+    }
+
+    private func provideSummonFeedback() {
+        if AppSettings.shared.hapticFeedbackEnabled { hapticFeedback() }
+    }
 
     @discardableResult
     public func summonShelf(at point: CGPoint? = nil, initialItems: [ShelfItem] = []) -> ShelfPanel {
@@ -23,6 +34,7 @@ public final class ShelfManager: ObservableObject {
             existingEmpty.setFrame(NSRect(origin: ShelfPanel.clampedOrigin(forCenter: center, size: size), size: size), display: true)
             existingEmpty.orderFrontRegardless()
             existingEmpty.viewModel.scheduleEmptyShelfTimeout()
+            provideSummonFeedback()
             return existingEmpty
         }
 
@@ -46,6 +58,7 @@ public final class ShelfManager: ObservableObject {
 
         activePanels.append(panel)
         panel.presentShelfAnimated()
+        provideSummonFeedback()
 
         if AppSettings.shared.soundEffectsEnabled {
             NSSound(named: NSSound.Name("Tink"))?.play()

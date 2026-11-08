@@ -99,115 +99,154 @@ public enum ShakeEvaluator {
     }
 }
 
+/// A mouse drag event can be a window move or selection, and the drag pasteboard
+/// retains data after a completed drop. Arm only on a new pasteboard generation
+/// observed after this gesture's mouse-down, never on leftover types alone.
+struct DragSummonTracker {
+    private var initialChangeCount: Int?
+    private var contentChangeCount: Int?
+    private var samples: [CursorSample] = []
+    private var hasSummoned = false
+    private var lastSummonTime = -TimeInterval.infinity
+
+    mutating func beginGesture(pasteboardChangeCount: Int) {
+        initialChangeCount = pasteboardChangeCount
+        contentChangeCount = nil
+        samples.removeAll()
+        hasSummoned = false
+    }
+
+    mutating func endGesture() {
+        initialChangeCount = nil
+        contentChangeCount = nil
+        samples.removeAll()
+        hasSummoned = false
+    }
+
+    mutating func shouldSummon(at point: CGPoint, time: TimeInterval,
+                               pasteboardChangeCount: Int, containsSupportedContent: Bool,
+                               optionHeld: Bool = false, isInternalDrag: Bool = false,
+                               shakeEnabled: Bool = true, optionEnabled: Bool = true,
+                               config: ShakeAnalysisInput = ShakeAnalysisInput(
+                                requiredDirectionChanges: 3, minimumSegmentDistance: 18, timeWindow: 0.48)) -> Bool {
+        guard let initialChangeCount = initialChangeCount,
+              pasteboardChangeCount != initialChangeCount,
+              containsSupportedContent, !isInternalDrag else {
+            samples.removeAll()
+            contentChangeCount = nil
+            return false
+        }
+        // Source apps may add formats during a drag. This must never reset the
+        // one-summon latch; a new mouse-down is required for another summon.
+        guard !hasSummoned else { return false }
+        guard time - lastSummonTime >= 1.0 else {
+            samples.removeAll()
+            return false
+        }
+        if contentChangeCount != pasteboardChangeCount {
+            contentChangeCount = pasteboardChangeCount
+            samples.removeAll()
+        }
+
+        if optionEnabled && optionHeld {
+            hasSummoned = true
+            lastSummonTime = time
+            samples.removeAll()
+            return true
+        }
+        guard shakeEnabled else {
+            samples.removeAll()
+            return false
+        }
+        samples.append(CursorSample(point: point, timestamp: time))
+        samples.removeAll { time - $0.timestamp > config.timeWindow }
+        guard ShakeEvaluator.isShakeDetected(samples: samples, config: config) else { return false }
+        hasSummoned = true
+        lastSummonTime = time
+        samples.removeAll()
+        return true
+    }
+}
+
 public final class ShakeDetector {
     public var onSummonRequested: ((CGPoint) -> Void)?
     /// Returns true if an internal shelf drag is currently active so we don't summon a duplicate shelf when dragging items out of a shelf.
     public var isInternalDragActive: (() -> Bool)?
 
-    private var globalDragMonitor: Any?
-    private var globalMouseUpMonitor: Any?
-    private var localDragMonitor: Any?
-    private var samples: [CursorSample] = []
-    private var lastKnownDragChangeCount: Int = -1
-    private var summonedForCurrentDragSession: Bool = false
-    private var lastSummonTimestamp: TimeInterval = 0
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
+    private var tracker = DragSummonTracker()
+
+    static func containsSupportedContent(types: [NSPasteboard.PasteboardType]?) -> Bool {
+        let supported: Set<NSPasteboard.PasteboardType> = [
+            .fileURL, .URL, .png, .tiff, .string,
+            NSPasteboard.PasteboardType("NSFilenamesPboardType")
+        ]
+        return (types ?? []).contains { supported.contains($0) }
+    }
 
     public init() {}
 
     public func startMonitoring() {
         stopMonitoring()
 
-        let dragPasteboard = NSPasteboard(name: .drag)
-        lastKnownDragChangeCount = dragPasteboard.changeCount
-
-        globalDragMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged]) { [weak self] event in
-            self?.handleMouseDragged(event: event)
+        let events: NSEvent.EventTypeMask = [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] event in
+            self?.handleMouseEvent(event)
         }
-
-        globalMouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in
-            self?.resetDragSession()
+        // Global monitors exclude our app. Local boundaries prevent a shelf drag
+        // or a click in this app from leaking into the next external gesture.
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: events) { [weak self] event in
+            self?.handleMouseEvent(event)
+            return event
         }
     }
 
     public func stopMonitoring() {
-        if let monitor = globalDragMonitor {
+        if let monitor = globalMouseMonitor {
             NSEvent.removeMonitor(monitor)
-            globalDragMonitor = nil
+            globalMouseMonitor = nil
         }
-        if let monitor = globalMouseUpMonitor {
+        if let monitor = localMouseMonitor {
             NSEvent.removeMonitor(monitor)
-            globalMouseUpMonitor = nil
+            localMouseMonitor = nil
         }
-        if let monitor = localDragMonitor {
-            NSEvent.removeMonitor(monitor)
-            localDragMonitor = nil
-        }
+        tracker.endGesture()
     }
 
-    private func resetDragSession() {
-        samples.removeAll()
-        summonedForCurrentDragSession = false
+    private func handleMouseEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown:
+            tracker.beginGesture(pasteboardChangeCount: NSPasteboard(name: .drag).changeCount)
+        case .leftMouseUp:
+            tracker.endGesture()
+        case .leftMouseDragged:
+            handleMouseDragged(event: event)
+        default:
+            break
+        }
     }
 
     private func handleMouseDragged(event: NSEvent) {
-        if isInternalDragActive?() == true {
-            return
-        }
-
         let settings = AppSettings.shared
-        let now = ProcessInfo.processInfo.systemUptime
-        let mouseLocation = NSEvent.mouseLocation
-
-        // Cooldown of 1.0s between summons
-        guard now - lastSummonTimestamp > 1.0 else { return }
-
-        // Check if system drag pasteboard has active items or updated changeCount
-        let dragPasteboard = NSPasteboard(name: .drag)
-        let currentChangeCount = dragPasteboard.changeCount
-        if currentChangeCount != lastKnownDragChangeCount {
-            lastKnownDragChangeCount = currentChangeCount
-            summonedForCurrentDragSession = false
-            samples.removeAll()
-        }
-
-        guard !summonedForCurrentDragSession else { return }
-
-        // Ensure there's actually something on the drag pasteboard (or user is dragging from Finder/Browser/App)
-        let hasDragTypes = !(dragPasteboard.types?.isEmpty ?? true)
-        guard hasDragTypes else { return }
-
-        // Option (⌥) + Drag instant summon without shaking
-        if settings.optionDragToSummonEnabled && event.modifierFlags.contains(.option) {
-            summonedForCurrentDragSession = true
-            lastSummonTimestamp = now
-            samples.removeAll()
-            DispatchQueue.main.async { [weak self] in
-                self?.onSummonRequested?(mouseLocation)
-            }
-            return
-        }
-
-        guard settings.shakeToSummonEnabled else { return }
-
         let sensitivity = settings.shakeSensitivity
-        let timeWindow = sensitivity.timeWindow
-
-        samples.append(CursorSample(point: mouseLocation, timestamp: now))
-        samples.removeAll { now - $0.timestamp > timeWindow }
-
-        let config = ShakeAnalysisInput(
-            requiredDirectionChanges: sensitivity.requiredDirectionChanges,
-            minimumSegmentDistance: sensitivity.minimumSegmentDistance,
-            timeWindow: timeWindow
-        )
-
-        if ShakeEvaluator.isShakeDetected(samples: samples, config: config) {
-            summonedForCurrentDragSession = true
-            lastSummonTimestamp = now
-            samples.removeAll()
-            DispatchQueue.main.async { [weak self] in
-                self?.onSummonRequested?(mouseLocation)
-            }
+        let pasteboard = NSPasteboard(name: .drag)
+        let point = NSEvent.mouseLocation
+        let shouldSummon = tracker.shouldSummon(
+            at: point, time: ProcessInfo.processInfo.systemUptime,
+            pasteboardChangeCount: pasteboard.changeCount,
+            containsSupportedContent: Self.containsSupportedContent(types: pasteboard.types),
+            optionHeld: event.modifierFlags.contains(.option),
+            isInternalDrag: isInternalDragActive?() == true,
+            shakeEnabled: settings.shakeToSummonEnabled,
+            optionEnabled: settings.optionDragToSummonEnabled,
+            config: ShakeAnalysisInput(requiredDirectionChanges: sensitivity.requiredDirectionChanges,
+                                       minimumSegmentDistance: sensitivity.minimumSegmentDistance,
+                                       timeWindow: sensitivity.timeWindow))
+        if shouldSummon {
+            // Event-monitor handlers run on main. Deliver synchronously so a
+            // queued callback cannot resurrect a gesture after mouse-up.
+            onSummonRequested?(point)
         }
     }
 }

@@ -74,6 +74,10 @@ public struct SettingsView: View {
                         }
 
                         Toggle("按住 Option (⌥) 键拖拽立即唤起架子（无需晃动）", isOn: $settings.optionDragToSummonEnabled)
+                        Toggle("唤起架子时提供触觉反馈", isOn: $settings.hapticFeedbackEnabled)
+                        Text("需要支持 Force Touch 的触控板；反馈受当前输入设备和系统触觉设置影响。")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
                     }
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
