@@ -1,11 +1,11 @@
 import AppKit
 import Combine
 
-/// AppKit has no public trackpad amplitude control. A short pair of generic
-/// cues makes a summon easier to distinguish without misusing pressure patterns.
+/// AppKit has no public trackpad amplitude control. The user-selected generic
+/// pair changes rhythm only; the API cannot confirm physical output or strength.
 final class ShelfHapticFeedback {
     static let shared = ShelfHapticFeedback()
-    static let secondTapDelay: TimeInterval = 0.12
+    static let secondTapDelay: TimeInterval = 0.24
 
     private let perform: () -> Void
     private let schedule: (TimeInterval, @escaping () -> Void) -> Void

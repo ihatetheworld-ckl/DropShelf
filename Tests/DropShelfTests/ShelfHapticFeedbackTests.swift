@@ -26,7 +26,7 @@ import XCTest
         feedback.play()
         XCTAssertEqual(requests, 1)
         XCTAssertEqual(scheduled.count, 1)
-        XCTAssertEqual(scheduled[0].0, 0.12, accuracy: 0.001)
+        XCTAssertEqual(scheduled[0].0, 0.24, accuracy: 0.001)
         scheduled[0].1()
         XCTAssertEqual(requests, 2)
         withExtendedLifetime(feedback) {}

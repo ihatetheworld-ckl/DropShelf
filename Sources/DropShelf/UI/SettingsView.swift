@@ -85,7 +85,7 @@ public struct SettingsView: View {
                             Button("试震") { ShelfHapticFeedback.shared.play() }
                         }
                         .disabled(!settings.hapticFeedbackEnabled)
-                        Text("双次会连续请求两次短提示。需要支持 Force Touch 的触控板，并保持手指接触；系统决定实际力度与是否执行。")
+                        Text("双次间隔约 240 毫秒。需要支持 Force Touch 的触控板，并保持手指接触；系统决定实际力度与是否执行。")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
