@@ -74,6 +74,10 @@ public final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(removeItemsAfterDragOut, forKey: "removeItemsAfterDragOut") }
     }
 
+    @Published public var alwaysCopyOnDragOut: Bool {
+        didSet { UserDefaults.standard.set(alwaysCopyOnDragOut, forKey: "alwaysCopyOnDragOut") }
+    }
+
     @Published public var autoCollapseEmptyShelfSeconds: Double {
         didSet { UserDefaults.standard.set(autoCollapseEmptyShelfSeconds, forKey: "autoCollapseEmptyShelfSeconds") }
     }
@@ -96,6 +100,7 @@ public final class AppSettings: ObservableObject {
             "shakeSensitivity": ShakeSensitivity.medium.rawValue,
             "autoCloseWhenEmptied": true,
             "removeItemsAfterDragOut": true,
+            "alwaysCopyOnDragOut": false,
             "autoCollapseEmptyShelfSeconds": 5.0,
             "soundEffectsEnabled": true,
             "hapticFeedbackEnabled": true
@@ -108,6 +113,7 @@ public final class AppSettings: ObservableObject {
         self.shakeSensitivity = ShakeSensitivity(rawValue: rawSens) ?? .medium
         self.autoCloseWhenEmptied = defaults.bool(forKey: "autoCloseWhenEmptied")
         self.removeItemsAfterDragOut = defaults.bool(forKey: "removeItemsAfterDragOut")
+        self.alwaysCopyOnDragOut = defaults.bool(forKey: "alwaysCopyOnDragOut")
         self.autoCollapseEmptyShelfSeconds = defaults.double(forKey: "autoCollapseEmptyShelfSeconds")
         self.soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
         self.hapticFeedbackEnabled = defaults.bool(forKey: "hapticFeedbackEnabled")

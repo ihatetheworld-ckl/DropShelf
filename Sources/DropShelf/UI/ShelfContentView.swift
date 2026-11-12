@@ -50,10 +50,8 @@ public struct ShelfContentView: View {
                 if !viewModel.items.isEmpty {
                     DragSourceOverlay(
                         itemsProvider: { viewModel.isBusy ? [] : viewModel.effectiveDragItems },
-                        onDragCompleted: { draggedIDs, _ in
-                            if AppSettings.shared.removeItemsAfterDragOut {
-                                viewModel.removeItems(withIDs: draggedIDs)
-                            }
+                        onDragCompleted: { draggedIDs, operation in
+                            viewModel.completeDrag(withIDs: draggedIDs, operation: operation)
                         }
                     )
                 }
@@ -370,10 +368,8 @@ public struct ShelfContentView: View {
                         onRightClickMenu: {
                             buildContextMenu(for: nil)
                         },
-                        onDragCompleted: { draggedIDs, _ in
-                            if AppSettings.shared.removeItemsAfterDragOut {
-                                viewModel.removeItems(withIDs: draggedIDs)
-                            }
+                        onDragCompleted: { draggedIDs, operation in
+                            viewModel.completeDrag(withIDs: draggedIDs, operation: operation)
                         }
                     )
                 }
@@ -447,10 +443,8 @@ public struct ShelfContentView: View {
                     onRightClickMenu: {
                         buildContextMenu(for: nil)
                     },
-                    onDragCompleted: { draggedIDs, _ in
-                        if AppSettings.shared.removeItemsAfterDragOut {
-                            viewModel.removeItems(withIDs: draggedIDs)
-                        }
+                    onDragCompleted: { draggedIDs, operation in
+                        viewModel.completeDrag(withIDs: draggedIDs, operation: operation)
                     }
                 )
             }
@@ -582,10 +576,8 @@ private struct ShelfGridItemCell: View {
                     viewModel.openItems([item])
                 },
                 onRightClickMenu: contextMenuBuilder,
-                onDragCompleted: { draggedIDs, _ in
-                    if AppSettings.shared.removeItemsAfterDragOut {
-                        viewModel.removeItems(withIDs: draggedIDs)
-                    }
+                onDragCompleted: { draggedIDs, operation in
+                    viewModel.completeDrag(withIDs: draggedIDs, operation: operation)
                 }
             )
 

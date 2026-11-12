@@ -84,6 +84,7 @@ public final class MultiFileDragSourceNSView: NSView, NSDraggingSource {
     private var mouseDownEvent: NSEvent?
     private var draggedItems: [ShelfItem] = []
     private var draggedItemIDs: Set<UUID> = []
+    private var dragCopiesOnly = false
 
     public override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         return true
@@ -122,9 +123,21 @@ public final class MultiFileDragSourceNSView: NSView, NSDraggingSource {
         self.mouseDownEvent = nil
         guard let items = itemsProvider?(), !items.isEmpty else { return }
 
-        guard items.allSatisfy({ $0.preserveForExternalUse() }) else { NSSound.beep(); return }
+        guard let draggingItems = prepareDraggingItems(items) else { NSSound.beep(); return }
+        let session = beginDraggingSession(with: draggingItems, event: startEvent, source: self)
+        session.animatesToStartingPositionsOnCancelOrFail = true
+        session.draggingFormation = .pile
+    }
+
+    /// Capture URLs and leases once; later selection/settings changes must not alter this drag.
+    func prepareDraggingItems(_ items: [ShelfItem]) -> [NSDraggingItem]? {
+        guard draggedItems.isEmpty, !items.isEmpty,
+              items.allSatisfy({ $0.preserveForExternalUse() }) else { return nil }
         draggedItems = items
         draggedItemIDs = Set(items.map { $0.id })
+        // Moving an exported cache file could break another shelf or the clipboard.
+        // A mixed batch therefore copies as a whole.
+        dragCopiesOnly = AppSettings.shared.alwaysCopyOnDragOut || items.contains { $0.isTemporaryFile }
 
         var draggingItems: [NSDraggingItem] = []
         for (idx, shelfItem) in items.enumerated() {
@@ -144,15 +157,15 @@ public final class MultiFileDragSourceNSView: NSView, NSDraggingSource {
         }
 
         DragSourceMonitor.shared.activeDragCount += 1
-        let session = beginDraggingSession(with: draggingItems, event: startEvent, source: self)
-        session.animatesToStartingPositionsOnCancelOrFail = true
-        session.draggingFormation = .pile
+        return draggingItems
     }
 
     public func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
         switch context {
         case .outsideApplication:
-            return [.copy, .link, .generic]
+            // Finder chooses same-volume move or cross-volume copy. Do not offer
+            // link/generic: an ordinary drop must never negotiate an alias.
+            return dragCopiesOnly ? .copy : [.copy, .move]
         case .withinApplication:
             return [.copy]
         @unknown default:
@@ -160,12 +173,25 @@ public final class MultiFileDragSourceNSView: NSView, NSDraggingSource {
         }
     }
 
+    public func ignoreModifierKeys(for session: NSDraggingSession) -> Bool {
+        // In normal mode AppKit filters Option to copy and Command to move.
+        // Copy-only drags remain usable even when Command is held.
+        return dragCopiesOnly
+    }
+
     public func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        guard !draggedItems.isEmpty else { return }
         DragSourceMonitor.shared.activeDragCount = max(0, DragSourceMonitor.shared.activeDragCount - 1)
         let ids = draggedItemIDs
         draggedItemIDs.removeAll()
-        defer { draggedItems.removeAll() }
-        if operation != [] {
+        // Release state before invoking a callback that may close/reuse the view.
+        let leases = draggedItems
+        draggedItems.removeAll()
+        dragCopiesOnly = false
+        defer { withExtendedLifetime(leases) {} }
+        if operation == .copy || operation == .move {
+            // The receiver handles the filesystem operation. Never delete a URL
+            // here, including after a reported move or a partial/cancelled drop.
             onDragCompleted?(ids, operation)
         }
     }

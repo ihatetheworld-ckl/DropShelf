@@ -85,6 +85,10 @@ public struct SettingsView: View {
 
                 GroupBox(label: Label("架子行为与自动化", systemImage: "slider.horizontal.3")) {
                     VStack(alignment: .leading, spacing: 10) {
+                        Toggle("拖出时始终复制，保留原始文件", isOn: $settings.alwaysCopyOnDragOut)
+                        Text("默认由 Finder 按同盘移动、跨盘复制处理；⌥ 强制复制，⌘ 强制移动。始终复制开启后忽略这些修饰键。应用生成的图片、文本、链接和 ZIP 始终复制，供其他架子和剪贴板继续使用。")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
                         Toggle("将文件拖出架子后自动从架子移除", isOn: $settings.removeItemsAfterDragOut)
                         Toggle("架子内文件全部拖出后自动关闭架子（未固定时）", isOn: $settings.autoCloseWhenEmptied)
                         Button("在 Finder 中查看临时文件缓存…") {

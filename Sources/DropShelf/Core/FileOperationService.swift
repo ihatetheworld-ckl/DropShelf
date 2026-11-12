@@ -27,6 +27,13 @@ struct FileMoveResult {
 }
 
 enum FileOperationService {
+    /// Do not mistake an unreadable path or a dangling symlink for a moved file.
+    static func sourceIsMissing(_ url: URL) -> Bool {
+        var info = stat()
+        guard lstat(url.path, &info) != 0 else { return false }
+        return errno == ENOENT || errno == ENOTDIR
+    }
+
     static func move(_ inputs: [FileOperationInput], to folder: URL,
                      policy: FileConflictPolicy = .skip) -> [FileMoveResult] {
         inputs.map { input in

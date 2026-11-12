@@ -88,6 +88,23 @@ public final class ShelfViewModel: ObservableObject, Identifiable {
         selectedItemIDs.subtract(ids)
         closeIfEmptied()
     }
+    public func completeDrag(withIDs ids: Set<UUID>, operation: NSDragOperation) {
+        guard !isClosed, !isBusy, items.contains(where: { ids.contains($0.id) }) else { return }
+        if operation == .move {
+            // A receiver can accept a move before finishing it, or skip individual
+            // files. Keep every original URL that still exists for recovery. A
+            // vanished source reference must go even when automatic removal is off.
+            let movedIDs = Set(items.filter {
+                ids.contains($0.id) && FileOperationService.sourceIsMissing($0.fileURL)
+            }.map { $0.id })
+            removeItems(withIDs: movedIDs)
+            if items.contains(where: { ids.contains($0.id) }) {
+                showToast("目标已接收移动请求；仍在原位置的项目已保留")
+            }
+        } else if operation == .copy && AppSettings.shared.removeItemsAfterDragOut {
+            removeItems(withIDs: ids)
+        }
+    }
     public func clearAll() {
         guard !isClosed, !isBusy else { return }
         items.removeAll()
