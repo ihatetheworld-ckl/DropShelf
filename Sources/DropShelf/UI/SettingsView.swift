@@ -75,7 +75,17 @@ public struct SettingsView: View {
 
                         Toggle("按住 Option (⌥) 键拖拽立即唤起架子（无需晃动）", isOn: $settings.optionDragToSummonEnabled)
                         Toggle("唤起架子时提供触觉反馈", isOn: $settings.hapticFeedbackEnabled)
-                        Text("需要支持 Force Touch 的触控板；反馈受当前输入设备和系统触觉设置影响。")
+                        HStack {
+                            Picker("触觉提示：", selection: $settings.summonHapticStyle) {
+                                ForEach(SummonHapticStyle.allCases) { style in
+                                    Text(style.displayName).tag(style)
+                                }
+                            }
+                            .frame(width: 220)
+                            Button("试震") { ShelfHapticFeedback.shared.play() }
+                        }
+                        .disabled(!settings.hapticFeedbackEnabled)
+                        Text("双次会连续请求两次短提示。需要支持 Force Touch 的触控板，并保持手指接触；系统决定实际力度与是否执行。")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }

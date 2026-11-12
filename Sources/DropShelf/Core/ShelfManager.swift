@@ -10,9 +10,7 @@ public final class ShelfManager: ObservableObject {
     private let hapticFeedback: () -> Void
 
     init(hapticFeedback: @escaping () -> Void = {
-        // Re-fetch the performer for each user action: input devices/settings can
-        // change. The system silently suppresses unsupported/unavailable feedback.
-        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+        ShelfHapticFeedback.shared.play()
     }) {
         self.hapticFeedback = hapticFeedback
     }

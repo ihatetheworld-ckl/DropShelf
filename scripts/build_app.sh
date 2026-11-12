@@ -30,6 +30,7 @@ SWIFT_SOURCES=(
     Sources/DropShelf/Core/FileOperationService.swift
     Sources/DropShelf/Core/ShelfViewModel.swift
     Sources/DropShelf/Core/ShelfManager.swift
+    Sources/DropShelf/Core/ShelfHapticFeedback.swift
     Sources/DropShelf/UI/DragOutContainerView.swift
     Sources/DropShelf/UI/ShelfContentView.swift
     Sources/DropShelf/UI/ShelfPanel.swift

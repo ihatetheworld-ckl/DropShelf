@@ -42,6 +42,19 @@ public enum ShakeSensitivity: String, CaseIterable, Identifiable {
     }
 }
 
+public enum SummonHapticStyle: String, CaseIterable, Identifiable {
+    case singleTap
+    case doubleTap
+
+    public var id: String { rawValue }
+    public var displayName: String {
+        switch self {
+        case .singleTap: return "单次短提示"
+        case .doubleTap: return "双次短提示"
+        }
+    }
+}
+
 public final class AppSettings: ObservableObject {
     public static let shared = AppSettings()
 
@@ -90,6 +103,10 @@ public final class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(hapticFeedbackEnabled, forKey: "hapticFeedbackEnabled") }
     }
 
+    @Published public var summonHapticStyle: SummonHapticStyle {
+        didSet { UserDefaults.standard.set(summonHapticStyle.rawValue, forKey: "summonHapticStyle") }
+    }
+
     private var isSyncingLaunchAtLogin: Bool = false
 
     private init() {
@@ -103,7 +120,8 @@ public final class AppSettings: ObservableObject {
             "alwaysCopyOnDragOut": false,
             "autoCollapseEmptyShelfSeconds": 5.0,
             "soundEffectsEnabled": true,
-            "hapticFeedbackEnabled": true
+            "hapticFeedbackEnabled": true,
+            "summonHapticStyle": SummonHapticStyle.doubleTap.rawValue
         ])
 
         self.launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
@@ -117,6 +135,7 @@ public final class AppSettings: ObservableObject {
         self.autoCollapseEmptyShelfSeconds = defaults.double(forKey: "autoCollapseEmptyShelfSeconds")
         self.soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
         self.hapticFeedbackEnabled = defaults.bool(forKey: "hapticFeedbackEnabled")
+        self.summonHapticStyle = SummonHapticStyle(rawValue: defaults.string(forKey: "summonHapticStyle") ?? "") ?? .doubleTap
     }
 
     public func refreshLaunchAtLoginState() {
