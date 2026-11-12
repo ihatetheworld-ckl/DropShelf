@@ -2,7 +2,7 @@
 
 用 Swift、AppKit 和 SwiftUI 构建的 macOS 悬浮文件暂存架，参考 Dropover 的暂存交互。把文件、图片或文字放到架子里，再带到另一个窗口。
 
-[下载 v1.0.2](https://github.com/ihatetheworld-ckl/DropShelf/releases/tag/v1.0.2) · [更新记录](CHANGELOG.md) · [测试与验收](docs/TESTING.md) · [MIT License](LICENSE)
+[下载 v1.0.3](https://github.com/ihatetheworld-ckl/DropShelf/releases/tag/v1.0.3) · [更新记录](CHANGELOG.md) · [测试与验收](docs/TESTING.md) · [MIT License](LICENSE)
 
 ## 下载与安装
 
@@ -10,10 +10,10 @@
 
 | 附件 | 用途 |
 | --- | --- |
-| [DropShelf-v1.0.2-macOS-Universal.dmg](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.2/DropShelf-v1.0.2-macOS-Universal.dmg) | 挂载后把应用拖到 Applications |
-| [DropShelf-v1.0.2-macOS-Universal.zip](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.2/DropShelf-v1.0.2-macOS-Universal.zip) | 解压后直接试用或手动安装 |
-| [SHA256SUMS.txt](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.2/SHA256SUMS.txt) | 核对安装包与构建记录的 SHA-256 |
-| [release-manifest.json](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.2/release-manifest.json) | 记录源码提交、版本、架构和文件摘要 |
+| [DropShelf-v1.0.3-macOS-Universal.dmg](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.3/DropShelf-v1.0.3-macOS-Universal.dmg) | 挂载后把应用拖到 Applications |
+| [DropShelf-v1.0.3-macOS-Universal.zip](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.3/DropShelf-v1.0.3-macOS-Universal.zip) | 解压后直接试用或手动安装 |
+| [SHA256SUMS.txt](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.3/SHA256SUMS.txt) | 核对安装包与构建记录的 SHA-256 |
+| [release-manifest.json](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.3/release-manifest.json) | 记录源码提交、版本、架构和文件摘要 |
 
 1. 下载 DMG 或 ZIP。升级前先处理旧架子中的内容并退出旧版本，避免两个实例抢占快捷键。
 2. 打开 `DropShelf.app`。应用运行后显示在菜单栏，默认不显示 Dock 图标。
@@ -24,7 +24,7 @@
 核对某个下载文件：
 
 ```bash
-shasum -a 256 DropShelf-v1.0.2-macOS-Universal.dmg
+shasum -a 256 DropShelf-v1.0.3-macOS-Universal.dmg
 ```
 
 将输出与 `SHA256SUMS.txt` 中同名文件的记录比较。下载全部附件后，也可在附件所在目录运行 `shasum -a 256 -c SHA256SUMS.txt`。
@@ -62,7 +62,7 @@ shasum -a 256 DropShelf-v1.0.2-macOS-Universal.dmg
 
 拖入本地文件或文件夹时，架子保存路径引用，不复制文件本体。移除项目、清空或关闭架子不会删除这些原始文件。
 
-当前源码的拖出策略按 [Dropover 的复制/移动交互](https://dropoverapp.com/tips)调整，交由 Finder 执行文件操作：
+v1.0.3 的拖出策略按 [Dropover 的复制/移动交互](https://dropoverapp.com/tips)调整，交由 Finder 执行文件操作：
 
 | 拖到 Finder 文件夹 | 请求的行为 |
 | --- | --- |
@@ -74,7 +74,7 @@ shasum -a 256 DropShelf-v1.0.2-macOS-Universal.dmg
 
 拖出不提供替身/链接操作；未开启始终复制时，`⌥⌘` 创建替身的组合不受支持。其他接收应用如何导入文件由该应用决定。取消拖拽保留项目；复制被接收后按“拖出后移除”设置更新架子。本应用不会在拖拽结束时自行删除源文件。目标报告移动时，只移除已不在原路径的引用，仍在原位置的项目保留以便重试；即使关闭自动移除，已失效的源路径也会从架子移除。
 
-Finder 负责原生拖放的进度、同名冲突和取消。AppKit 的结束回调不提供逐项完成结果，目标也可能异步处理：仍在原处的移动项会保守保留；复制的后续失败可能需要从原路径重新导入。需要本应用逐项结果报告时，使用下述菜单操作。以上为当前源码策略，Finder 端到端验收见[测试文档](docs/TESTING.md)；已发布的 v1.0.2 尚未包含此次调整。
+Finder 负责原生拖放的进度、同名冲突和取消。AppKit 的结束回调不提供逐项完成结果，目标也可能异步处理：仍在原处的移动项会保守保留；复制的后续失败可能需要从原路径重新导入。需要本应用逐项结果报告时，使用下述菜单操作。Finder 端到端验收范围见[测试文档](docs/TESTING.md)。
 
 “移动到指定文件夹”默认保留已有目标并跳过同名项目，也可选择重命名后同时保留。同路径、符号链接别名及同一 inode 会安全跳过。同磁盘使用禁止覆盖的原子重命名；**跨磁盘和应用生成的临时文件采用复制，并保留源文件**。结果会区分移动、复制、跳过与失败。
 
@@ -103,7 +103,7 @@ Finder 负责原生拖放的进度、同名冲突和取消。AppKit 的结束回
 - 架子列表不跨应用重启恢复；原始文件在外部改名、移动或删除后，引用不会自动跟踪。
 - 长时间文件任务暂不支持取消。
 - 窗口按跨桌面和全屏辅助窗口配置；多屏、全屏应用及特定浏览器的拖放兼容性仍需实机验收。
-- v1.0.2 本地在 Apple Silicon、macOS 27.2 上通过了 52 项回归测试，覆盖拖拽会话与残留数据、触觉请求开关、真实跨卷复制、ZIP 解包内容、缓存生命周期及 AppKit 窗口/Quick Look。触觉请求测试使用注入回调，实际震动手感和物理三指手势仍待确认，详见[测试与验收](docs/TESTING.md)。
+- v1.0.3 本地在 Apple Silicon、macOS 27.2 上通过了 63 项回归测试，覆盖拖出操作与取消回调、部分移动保留、拖拽会话与残留数据、触觉请求开关、真实跨卷复制、ZIP 解包内容、缓存生命周期及 AppKit 窗口/Quick Look。触觉请求测试使用注入回调，实际震动手感和物理三指手势仍待确认，详见[测试与验收](docs/TESTING.md)。
 - Intel 与 macOS 13 的部署目标经过构建检查；未进行这两种环境的真机验收。CI 结果也不能替代 Finder、浏览器和外部应用的完整手势测试。
 
 项目没有“0 毫秒”或“零延迟”的测量结论。响应速度取决于文件、设备与应用的数据提供方式。
@@ -138,7 +138,7 @@ DROPSHELF_BUILD_DIR="$HOME/Library/Developer/DropShelf/LocalBuild" ./scripts/bui
 ./scripts/package_release.sh
 
 # 独立复核已有安装包
-python3 scripts/verify_release.py build/releases/v1.0.2 --version 1.0.2
+python3 scripts/verify_release.py build/releases/v1.0.3 --version 1.0.3
 ```
 
 打包脚本只在临时工作目录签名和制作镜像，校验通过后输出至 `build/releases/v版本号/`。版本必须与 `Info.plist` 一致，已有发行目录不会被覆盖。可用 `DROPSHELF_RELEASE_DIR` 指定输出父目录。
