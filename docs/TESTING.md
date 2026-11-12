@@ -38,13 +38,13 @@ v1.0.2 发行准备于 2026-11-08 在 Apple Silicon、macOS 27.2 上运行完整
 
 检测仅在观察到本次按下之后的拖拽数据变化时启用；应用在拖拽中途启动时，请重新开始拖拽。它不会为确认拖拽而读取文件内容或使用私有系统接口。
 
-## 开发中：双次触觉提示
+## v1.0.4：通用双次 240 毫秒触觉提示
 
 2026-11-12 在 Apple Silicon、macOS 27.2 / Swift 6.4.2 上运行完整 71 项回归，0 失败、0 跳过；新增 8 项调度回归。Universal 的 arm64/x86_64、macOS 13.0 目标及 ad-hoc 签名通过构建检查。
 
 经用户确认当前架子无待处理内容后，已正常退出旧试用版并启动双次触觉试用版，核对实际运行路径；用户随后反馈：120 毫秒双次与单次差别不明显，继续比较。
 
-用户反馈原有单次提示可以感知，但希望更明显。继续探索后，用户指定采用通用双次 240 毫秒；当前开发分支使用两次 `.generic` / `.now` 请求，间隔约 240 毫秒，保留单次选项及“试震”按钮。Apple 的[公开反馈方法](https://developer.apple.com/documentation/appkit/nshapticfeedbackperformer/perform(_:performancetime:))不提供振幅参数或执行成功回执；系统可省略反馈，手指不接触 Force Touch 触控板时不执行。按[官方模式语义](https://developer.apple.com/documentation/appkit/nshapticfeedbackmanager/feedbackpattern)，架子唤起使用通用提示，不把对齐或压力级别模式当作“更强档位”。
+用户反馈原有单次提示可以感知，但希望更明显。继续探索后，用户指定采用通用双次 240 毫秒；v1.0.4 使用两次 `.generic` / `.now` 请求，间隔约 240 毫秒，保留单次选项及“试震”按钮。Apple 的[公开反馈方法](https://developer.apple.com/documentation/appkit/nshapticfeedbackperformer/perform(_:performancetime:))不提供振幅参数或执行成功回执；系统可省略反馈，手指不接触 Force Touch 触控板时不执行。按[官方模式语义](https://developer.apple.com/documentation/appkit/nshapticfeedbackmanager/feedbackpattern)，架子唤起使用通用提示，不把对齐或压力级别模式当作“更强档位”。
 
 240 毫秒版本再次通过完整 71 项回归及 Universal 构建、签名检查；已沿用本轮试用切换授权正常退出旧版、启动新构建，并核对应用域内的触觉开关开启、样式为双次。用户随后在试用确认中反馈“合适，保留当前方案”，因此保留通用双次 240 毫秒。此为本机用户对手感与节奏的主观验收，不代表测得硬件振幅增加，也不代表其他设备已验收。
 

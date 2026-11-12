@@ -2,7 +2,7 @@
 
 用 Swift、AppKit 和 SwiftUI 构建的 macOS 悬浮文件暂存架，参考 Dropover 的暂存交互。把文件、图片或文字放到架子里，再带到另一个窗口。
 
-[下载 v1.0.3](https://github.com/ihatetheworld-ckl/DropShelf/releases/tag/v1.0.3) · [更新记录](CHANGELOG.md) · [测试与验收](docs/TESTING.md) · [MIT License](LICENSE)
+[下载 v1.0.4](https://github.com/ihatetheworld-ckl/DropShelf/releases/tag/v1.0.4) · [更新记录](CHANGELOG.md) · [测试与验收](docs/TESTING.md) · [MIT License](LICENSE)
 
 ## 下载与安装
 
@@ -10,10 +10,10 @@
 
 | 附件 | 用途 |
 | --- | --- |
-| [DropShelf-v1.0.3-macOS-Universal.dmg](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.3/DropShelf-v1.0.3-macOS-Universal.dmg) | 挂载后把应用拖到 Applications |
-| [DropShelf-v1.0.3-macOS-Universal.zip](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.3/DropShelf-v1.0.3-macOS-Universal.zip) | 解压后直接试用或手动安装 |
-| [SHA256SUMS.txt](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.3/SHA256SUMS.txt) | 核对安装包与构建记录的 SHA-256 |
-| [release-manifest.json](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.3/release-manifest.json) | 记录源码提交、版本、架构和文件摘要 |
+| [DropShelf-v1.0.4-macOS-Universal.dmg](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.4/DropShelf-v1.0.4-macOS-Universal.dmg) | 挂载后把应用拖到 Applications |
+| [DropShelf-v1.0.4-macOS-Universal.zip](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.4/DropShelf-v1.0.4-macOS-Universal.zip) | 解压后直接试用或手动安装 |
+| [SHA256SUMS.txt](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.4/SHA256SUMS.txt) | 核对安装包与构建记录的 SHA-256 |
+| [release-manifest.json](https://github.com/ihatetheworld-ckl/DropShelf/releases/download/v1.0.4/release-manifest.json) | 记录源码提交、版本、架构和文件摘要 |
 
 1. 下载 DMG 或 ZIP。升级前先处理旧架子中的内容并退出旧版本，避免两个实例抢占快捷键。
 2. 打开 `DropShelf.app`。应用运行后显示在菜单栏，默认不显示 Dock 图标。
@@ -24,7 +24,7 @@
 核对某个下载文件：
 
 ```bash
-shasum -a 256 DropShelf-v1.0.3-macOS-Universal.dmg
+shasum -a 256 DropShelf-v1.0.4-macOS-Universal.dmg
 ```
 
 将输出与 `SHA256SUMS.txt` 中同名文件的记录比较。下载全部附件后，也可在附件所在目录运行 `shasum -a 256 -c SHA256SUMS.txt`。
@@ -56,7 +56,7 @@ shasum -a 256 DropShelf-v1.0.3-macOS-Universal.dmg
 
 新建或复用架子时请求触觉提示，默认开启，可在偏好设置中独立关闭。需要支持 Force Touch 的触控板；实际反馈由系统根据当前输入设备、触觉设置及手指接触情况决定。使用 Apple 的公开 `NSHapticFeedbackManager` 接口，不要求额外辅助功能权限。
 
-**当前开发分支**默认使用通用双次短提示（两次请求间隔约 240 毫秒），可在偏好设置切回单次，并点击“试震”比较。Apple 的公开触控板接口没有力度参数；双次用于改变提示节奏，不代表物理振幅增加，也不保证系统实际执行两次。切换开关或样式、再次触发或试震时，会取消之前未完成的第二次请求。已发布的 v1.0.3 仍使用单次提示。
+默认使用通用双次短提示（两次请求间隔约 240 毫秒），可在偏好设置切回单次，并点击“试震”比较。Apple 的公开触控板接口没有力度参数；双次用于改变提示节奏，不代表物理振幅增加，也不保证系统实际执行两次。切换开关或样式、再次触发或试震时，会取消之前未完成的第二次请求。未设置过样式时默认双次；升级会保留已有触觉开关和已选择的单次/双次样式。
 
 ## 文件会怎样处理
 
@@ -64,7 +64,7 @@ shasum -a 256 DropShelf-v1.0.3-macOS-Universal.dmg
 
 拖入本地文件或文件夹时，架子保存路径引用，不复制文件本体。移除项目、清空或关闭架子不会删除这些原始文件。
 
-v1.0.3 的拖出策略按 [Dropover 的复制/移动交互](https://dropoverapp.com/tips)调整，交由 Finder 执行文件操作：
+v1.0.4 的拖出策略按 [Dropover 的复制/移动交互](https://dropoverapp.com/tips)调整，交由 Finder 执行文件操作：
 
 | 拖到 Finder 文件夹 | 请求的行为 |
 | --- | --- |
@@ -105,7 +105,7 @@ Finder 负责原生拖放的进度、同名冲突和取消。AppKit 的结束回
 - 架子列表不跨应用重启恢复；原始文件在外部改名、移动或删除后，引用不会自动跟踪。
 - 长时间文件任务暂不支持取消。
 - 窗口按跨桌面和全屏辅助窗口配置；多屏、全屏应用及特定浏览器的拖放兼容性仍需实机验收。
-- v1.0.3 本地在 Apple Silicon、macOS 27.2 上通过了 63 项回归测试，覆盖拖出操作与取消回调、部分移动保留、拖拽会话与残留数据、触觉请求开关、真实跨卷复制、ZIP 解包内容、缓存生命周期及 AppKit 窗口/Quick Look。触觉请求测试使用注入回调，实际震动手感和物理三指手势仍待确认，详见[测试与验收](docs/TESTING.md)。
+- v1.0.4 本地在 Apple Silicon、macOS 27.2 上通过了 71 项回归测试，覆盖拖出操作与取消回调、部分移动保留、拖拽会话与残留数据、触觉开关与延迟取消、真实跨卷复制、ZIP 解包内容、缓存生命周期及 AppKit 窗口/Quick Look。触觉请求测试使用注入回调；本机用户已试用确认通用双次 240 毫秒的手感和节奏合适，未测量硬件振幅。物理三指完整手势链路和其他设备仍需验收，详见[测试与验收](docs/TESTING.md)。
 - Intel 与 macOS 13 的部署目标经过构建检查；未进行这两种环境的真机验收。CI 结果也不能替代 Finder、浏览器和外部应用的完整手势测试。
 
 项目没有“0 毫秒”或“零延迟”的测量结论。响应速度取决于文件、设备与应用的数据提供方式。
@@ -140,7 +140,7 @@ DROPSHELF_BUILD_DIR="$HOME/Library/Developer/DropShelf/LocalBuild" ./scripts/bui
 ./scripts/package_release.sh
 
 # 独立复核已有安装包
-python3 scripts/verify_release.py build/releases/v1.0.3 --version 1.0.3
+python3 scripts/verify_release.py build/releases/v1.0.4 --version 1.0.4
 ```
 
 打包脚本只在临时工作目录签名和制作镜像，校验通过后输出至 `build/releases/v版本号/`。版本必须与 `Info.plist` 一致，已有发行目录不会被覆盖。可用 `DROPSHELF_RELEASE_DIR` 指定输出父目录。
