@@ -24,6 +24,7 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 SWIFT_SOURCES=(
     Sources/DropShelf/Models/AppSettings.swift
     Sources/DropShelf/Models/ShelfItem.swift
+    Sources/DropShelf/Core/AppInstanceGuard.swift
     Sources/DropShelf/Core/ShakeDetector.swift
     Sources/DropShelf/Core/HotKeyManager.swift
     Sources/DropShelf/Core/TemporaryFileStore.swift

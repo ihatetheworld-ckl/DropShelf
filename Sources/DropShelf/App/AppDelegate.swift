@@ -40,6 +40,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        if let existing = AppInstanceGuard.existingApplication() {
+            NSLog("DropShelf: duplicate startup yields to pid=%d path=%@", existing.processIdentifier, existing.bundleURL?.path ?? "unknown")
+            existing.activate(options: [])
+            let existingBundle = existing.bundleURL.flatMap { Bundle(url: $0) }
+            let existingVersion = existingBundle?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知"
+            let thisVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "未知"
+            if existingVersion != thisVersion {
+                let alert = NSAlert()
+                alert.messageText = "另一个版本的 DropShelf 已在运行"
+                alert.informativeText = "正在运行 v\(existingVersion)：\n\(existing.bundleURL?.path ?? "未知路径")\n\n请先处理该版本架子中的内容并退出，再启动 v\(thisVersion)。本次启动将退出，避免两个版本同时响应晃动和快捷键。"
+                alert.addButton(withTitle: "知道了")
+                alert.runModal()
+            }
+            NSApp.terminate(nil)
+            return
+        }
         _ = TemporaryFileStore.shared
         setupStatusItem()
         setupShakeDetector()
